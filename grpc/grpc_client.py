@@ -32,26 +32,29 @@ path_request = srv6_explicit_path_pb2.SRv6EPRequest()
 # Create a new path
 path = path_request.path.add()
 # Set destination, device, encapmode
-path.destination = "1111:4::2/128"
-path.device = "eth0"
+path.destination = "2001:df15::/48"
+path.device = "ens3"
+#path.device = "eth0"
 path.encapmode = "inline"
 # Create a new segment
 srv6_segment = path.sr_path.add()
 srv6_segment.segment = "1111:3::2"
 # Single add
 response = srv6_stub.Create(path_request)
-print response
+print(response)
 
 path_request = srv6_explicit_path_pb2.SRv6EPRequest()
 path = path_request.path.add()
 path.destination = "2222:4::2/128"
-path.device = "eth0"
+path.device = "ens3"
+#path.device = "eth0"
 path.encapmode = "inline"
 srv6_segment = path.sr_path.add()
 srv6_segment.segment = "2222:3::2"
 path = path_request.path.add()
 path.destination = "3333:4::2/128"
-path.device = "eth0"
+path.device = "ens3"
+#path.device = "eth0"
 path.encapmode = "encap"
 srv6_segment = path.sr_path.add()
 srv6_segment.segment = "3333:3::2"
@@ -60,8 +63,8 @@ srv6_segment.segment = "3333:2::2"
 srv6_segment = path.sr_path.add()
 srv6_segment.segment = "3333:1::2"
 # Bulk add
-response = srv6_stub.Create(path_request)
-print response
+response = srv6_stub.Replace(path_request)
+print(response)
 # Let's close the session
 channel.close()
 
@@ -123,5 +126,5 @@ for data in json_data:
       srv6_segment = path.sr_path.add()
       srv6_segment.segment = segment
     response = srv6_stub.Remove(path_request)
-    print response
+    print(response)
     channel.close()

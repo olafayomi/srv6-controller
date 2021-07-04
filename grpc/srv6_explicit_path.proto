@@ -8,6 +8,8 @@ service SRv6ExplicitPath {
   rpc Create (SRv6EPRequest) returns (SRv6EPReply) {}
   // Remove operation
   rpc Remove (SRv6EPRequest) returns (SRv6EPReply) {}
+  // Replace operation
+  rpc Replace (SRv6EPRequest) returns (SRv6EPReply) {}
 }
 
 // The SRv6EPRequest message containing a number of paths.
@@ -29,6 +31,8 @@ message Path {
   string encapmode = 3;
   // Device name
   string device = 4;
+  // Routing table number
+  uint32 table = 5;
 }
 
 // The SRv6EPReply message containing a simple status message

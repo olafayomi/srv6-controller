@@ -2,6 +2,7 @@
 
 from concurrent import futures
 from optparse import OptionParser
+from argparse import ArgumentParser
 from pyroute2 import IPRoute
 from google.protobuf import json_format
 
@@ -10,6 +11,7 @@ import logging
 import time
 import json
 import grpc
+import sys
 
 import srv6_explicit_path_pb2_grpc
 import srv6_explicit_path_pb2
@@ -21,14 +23,18 @@ grpc_server = None
 # Netlink socket
 ip_route = None
 # Cache of the resolved interfaces
-interfaces = ['ens3']
-#interfaces = ['eth0']
+interfaces =  []#['as3r2-eth1']
 idxs = {}
+ptable = 201
+maintable = 254
 # logger reference
 logger = logging.getLogger(__name__)
 # Server ip and port
-GRPC_IP = "::"
-GRPC_PORT = 12345
+#GRPC_IP = "::"
+#GRPC_IP = "2001:df40::2"
+#GRPC_PORT = 12345
+#GRPC_IP = "192.168.122.172"
+GRPC_PORT = 50055
 # Debug option
 SERVER_DEBUG = False
 # Secure option
@@ -49,8 +55,25 @@ class SRv6ExplicitPathHandler(srv6_explicit_path_pb2_grpc.SRv6ExplicitPathServic
       segments = []
       for srv6_segment in path.sr_path:
         segments.append(srv6_segment.segment)
-      ip_route.route(op, dst=path.destination, oif=idxs[path.device],
-        encap={'type':'seg6', 'mode':path.encapmode, 'segs':segments})
+        logger.info("SERVER DEBUG: Segment is %s" %segments)
+
+      logger.info("SERVER DEGUG: SEGEMENT: %s  ->  DESTINATION: %s" %(segments, path.destination))
+      if path.table == 0:
+          rtable = maintable
+      else:
+          rtable = path.table
+          logger.info("SERVER DEBUG: SEGMENT is for PAR TABLE!!!!")
+      # Add priority
+      if op == 'del':
+          ip_route.route(op, dst=path.destination, oif=idxs[path.device],
+            table=rtable,
+            encap={'type':'seg6', 'mode': path.encapmode, 'segs': segments},
+            priority=10)
+      else:
+        ip_route.route(op, dst=path.destination, oif=idxs[path.device],
+          table=rtable,
+          encap={'type':'seg6', 'mode':path.encapmode, 'segs':segments},
+          priority=10)
     # and create the response
     return srv6_explicit_path_pb2.SRv6EPReply(message="OK")
 
@@ -62,6 +85,9 @@ class SRv6ExplicitPathHandler(srv6_explicit_path_pb2_grpc.SRv6ExplicitPathServic
   def Remove(self, request, context):
     # Handle Remove operation 
     return self.Execute("del", request, context)
+
+  def Replace(self, request, context):
+      return self.Execute("replace", request, context)
 
 # Start gRPC server
 def start_server():
@@ -89,6 +115,7 @@ def start_server():
     else:
       # Create an insecure endpoint
       grpc_server.add_insecure_port("[%s]:%s" %(GRPC_IP, GRPC_PORT))
+      #grpc_server.add_insecure_port("%s:%s" %(GRPC_IP, GRPC_PORT))
   # Setup ip route
   if ip_route is not None:
     logger.error("IP Route is already setup")
@@ -106,21 +133,42 @@ def start_server():
 # Parse options
 def parse_options():
   global SECURE
+  global interfaces
+  global GRPC_IP
   parser = OptionParser()
   parser.add_option("-d", "--debug", action="store_true", help="Activate debug logs")
   parser.add_option("-s", "--secure", action="store_true", help="Activate secure mode")
+  parser.add_option("-a", "--address", action="store", type=str, help="Address to listen on")
+  parser.add_option("-i", "--interface", action="store", type=str, help="interface to install segs")
   # Parse input parameters
   (options, args) = parser.parse_args()
   # Setup properly the logger
   if options.debug:
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG,
+                        format="%(asctime)s %(levelname)-8s %(message)s")
   else:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)-8s %(message)s")
   # Setup properly the secure mode
   if options.secure:
     SECURE = True
   else:
     SECURE = False
+
+  if options.address:
+      logger.info("Address is: " + options.address)
+      GRPC_IP = options.address
+  else:
+      logger.info("ERROR: GRPC address not supplied!!!")
+      sys.exit(1)
+
+  if  options.interface:
+      logger.info("Interface is: " + options.interface)
+      interfaces.append(options.interface)
+  else:
+      logger.info("ERROR: Interface for segments not supplied!!!")
+      sys.exit(1)
+
   SERVER_DEBUG = logger.getEffectiveLevel() == logging.DEBUG
   logger.info("SERVER_DEBUG:" + str(SERVER_DEBUG))
 
