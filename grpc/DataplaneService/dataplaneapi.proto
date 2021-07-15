@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "dataplane.proto";
+// Define the rpc service interface to get data
+service DataplaneState {
+  // Get intefaces
+  rpc GetIfaces (google.protobuf.Empty) returns (DataplaneService.ReplyIfaces) {}
+  // Get external interfaces
+  rpc GetExternalIfaces (DataplaneService.RequestIfaces) returns (DataplaneService.ReplyIfaces) {} 
+  // Get internal interfaces
+  rpc GetInternalIfaces (DataplaneService.RequestIfaces)  returns (DataplaneService.ReplyIfaces) {}
+  // Get all routing tables 
+  rpc GetRoutingTables (google.protobuf.Empty) returns (DataplaneService.RoutesInAllTables) {} 
+  // Get specific route table for a flow type
+  rpc GetRouteTable (DataplaneService.PARFlows) returns (DataplaneService.RoutesInTable) {}
+  // Get nftable rules
+  rpc GetNftables (google.protobuf.Empty) returns (DataplaneService.RequestNftRule) {}
+  // Get IP rule for marking flow
+  // rpc GetRuleMark () returns () {}
+}
+
+// Define the rpc service interface to configure dataplane for PAR
+service ConfigureDataplane {
+  // Mark traffic
+  rpc FlowMark (DataplaneService.RequestFlowMark) returns (DataplaneService.ReplyFlowMark) {}
+  // Create routing tables for flows
+  rpc CreateRouteTable (DataplaneService.PARFlows) returns (DataplaneService.RTables)  {}
+  // Create NFTable rules to PAR flows on ingress interfaces
+  rpc AddNftableRule (DataplaneService.RequestNftRule) returns (DataplaneService.ReplyNftRule) {}
+}

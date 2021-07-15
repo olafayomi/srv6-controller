@@ -23,7 +23,8 @@ def get_grpc_session(ip_address, port, secure):
     grpc_client_credentials = grpc.ssl_channel_credentials(certificate)
     channel = grpc.secure_channel("%s:%s" %(ip_address, port), grpc_client_credentials)
   else:
-    channel = grpc.insecure_channel("%s:%s" %(ip_address, port))
+    #channel = grpc.insecure_channel("%s:%s" %(ip_address, port))
+    channel = grpc.insecure_channel("[%s]:%s" %(ip_address, str(port)))
   return srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(channel), channel
 
 ## Get the reference of the stub
@@ -134,7 +135,7 @@ path_del = """
 
 if __name__ == '__main__':
     #srv6_stub,channel = get_grpc_session("localhost", 12345, SECURE)
-    srv6_stub,channel = get_grpc_session("192.168.122.172", 50055, SECURE)
+    srv6_stub,channel = get_grpc_session("2001:df12::1", 50055, SECURE)
     while True:
         # Create message request
         path_request = srv6_explicit_path_pb2.SRv6EPRequest()

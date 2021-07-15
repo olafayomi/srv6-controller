@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+
+package DataplaneService;
+
+message RoutesInAllTables  {
+  // return all tables
+  repeated RoutesInTable AllTables = 1;
+}
+
+message RoutesInTable {
+  // Table number
+  uint32 table = 1;
+  // Normal routes
+  repeated Route route = 2;
+  // SRv6 Routes
+  repeated SRv6Route SRoute = 3;
+}
+
+message Route {
+  // Destination address
+  string destination = 1;
+  // Device name
+  string device = 3;
+  // Nexthop 
+  string nexthop = 4;
+  // Route priority 
+  uint32 priority = 5;
+  // table
+  uint32 table = 6;
+}
+
+// SRv6 rule/route
+message SRv6Route {
+  // Route of the SRv6 policy
+  string destination = 1;
+  // SRv6 Segment
+  message SRv6Segment {
+    string segment = 1;
+  }
+  // A collection of SRv6 Segments
+  repeated SRv6Segment sr_path = 2;
+  // Encap mode
+  string encapmode = 3;
+  // Device name
+  string device = 4;
+  // Routing table number
+  uint32 table = 5;
+}
+
+message RequestIfaces {
+  // Neighbours and nexthops 
+  repeated string Neighbours = 1;
+}
+
+message Interface {
+  // Interface name
+  string IfName = 1;
+  // Interface Index
+  uint32 IfIndex = 2;
+  enum State {
+    DOWN = 0;
+    UP = 1;
+  }
+  // Interface state
+  State IfState = 3;
+}
+
+// Message to return interfaces
+message ReplyIfaces {
+  //
+  repeated Interface iface = 1 ;
+}
+
+
+// Message to encode IP rules to mark flows
+message IPRule {
+  // Mark to assign to flow
+  uint32 fwmark = 1;
+  // Route table number for the marked flow
+  uint32  table = 2;
+}
+
+// Flow mark request message containing a number of rules to apply
+message RequestFlowMark {
+  // IP rules to mark
+  repeated IPRule rule = 1;
+}
+
+// Dataplane reply message about flow
+message ReplyFlowMark {
+  // Return true if all rules successfully created
+  bool applied = 1;
+  // Return the rules that failed
+  repeated IPRule failed = 2;
+  // Return the rules that succeeded
+  repeated IPRule successful = 3;
+}
+
+// Message to create custom routing table for flows
+message PARFlows {
+  // Name of flow
+  repeated string flow = 1;
+}
+
+message RTables {
+  string tableName = 1;
+  uint32 tableNo = 2;
+}
+
+// Reply from dataplane to controller about custom routing tables
+message ReplyPARFlows {
+  // Return true if all custom tables created
+  bool CreatedAll = 1;
+  // Return tables successfully created
+  repeated RTables created = 2;
+  // Return flows that tables not created for
+  repeated string flow = 3;
+}
+
+// Message to add nftable rule for a flow to dataplane
+message NFTRule {
+  // Ingress interface to apply the rule
+  string intName = 1; 
+  // Protocol type for flow
+  string protocol = 2;
+  // Destination port for flow
+  uint32 DPort = 3;
+  // fwmark for flow
+  uint32 FwmarkNo = 4;
+}
+
+// Message to add NFTRule
+message RequestNftRule {
+  // NFT Rules
+  repeated NFTRule rules = 1;
+}
+
+// Reply to NFT rule add
+message ReplyNftRule {
+  // Return true if all successful
+  bool nftcreated = 1;
+  // return successful rules
+  repeated NFTRule successful = 2;
+  // return failed rules
+  repeated NFTRule failed  = 3;
+}
