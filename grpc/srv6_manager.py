@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 class SRv6ExplicitPathHandler(srv6_explicit_path_pb2_grpc.SRv6ExplicitPathServicer):
   """gRPC request handler"""
 
+  def __init__(self, _iproute):
+      self.ipr = _iproute
+
+
   def Execute(self, op, request, context):
     logger.debug("config received:\n%s", request)
     # Let's push the routes
@@ -51,15 +55,15 @@ class SRv6ExplicitPathHandler(srv6_explicit_path_pb2_grpc.SRv6ExplicitPathServic
           logger.info("SERVER DEBUG: SEGMENT is for PAR TABLE!!!!")
       # Add priority
       if op == 'del':
-          ip_route.route(op, dst=path.destination, oif=idxs[path.device],
+          self.ipr.route(op, dst=path.destination, oif=idxs[path.device],
             table=rtable,
             encap={'type':'seg6', 'mode': path.encapmode, 'segs': segments},
             priority=10)
       else:
-        ip_route.route(op, dst=path.destination, oif=idxs[path.device],
-          table=rtable,
-          encap={'type':'seg6', 'mode':path.encapmode, 'segs':segments},
-          priority=10)
+          self.ipr.route(op, dst=path.destination, oif=idxs[path.device],
+            table=rtable,
+            encap={'type':'seg6', 'mode':path.encapmode, 'segs':segments},
+            priority=10)
     # and create the response
     return srv6_explicit_path_pb2.SRv6EPReply(message="OK")
 

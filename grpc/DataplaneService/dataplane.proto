@@ -61,6 +61,7 @@ message Interface {
   enum State {
     DOWN = 0;
     UP = 1;
+    UNKNOWN = 2;
   }
   // Interface state
   State IfState = 3;
@@ -119,7 +120,7 @@ message ReplyPARFlows {
 }
 
 // Message to add nftable rule for a flow to dataplane
-message NFTRule {
+message IP6TableRule {
   // Ingress interface to apply the rule
   string intName = 1; 
   // Protocol type for flow
@@ -131,17 +132,17 @@ message NFTRule {
 }
 
 // Message to add NFTRule
-message RequestNftRule {
+message RequestIP6TableRule {
   // NFT Rules
-  repeated NFTRule rules = 1;
+  repeated IP6TableRule rules = 1;
 }
 
 // Reply to NFT rule add
-message ReplyNftRule {
+message ReplyIP6TableRule {
   // Return true if all successful
-  bool nftcreated = 1;
+  bool ip6tablecreated = 1;
   // return successful rules
-  repeated NFTRule successful = 2;
+  repeated IP6TableRule successful = 2;
   // return failed rules
-  repeated NFTRule failed  = 3;
+  repeated IP6TableRule failed  = 3;
 }

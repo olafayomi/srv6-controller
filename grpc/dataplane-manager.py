@@ -43,6 +43,11 @@ from concurrent import futures
 import srv6_explicit_path_pb2_grpc
 import srv6_explicit_path_pb2
 from srv6_manager import SRv6ExplicitPathHandler
+from dpserviceapi import DataplaneStateHandler, ConfigureDataplaneHandler
+import dataplane_pb2
+import dataplaneapi_pb2_grpc
+
+
 
 # Logger reference
 logger = logging.getLogger(__name__)
@@ -68,11 +73,17 @@ def start_server(grpc_ip,grpc_port,
         # Invalid address
         logger.fatal('Invalid gRPC address: %s', grpc_ip)
         sys.exit(-2)
-    # Create the server and add the handlers
-    grpc_server = grpc.server(futures.ThreadPoolExecutor())
+    # Create IP route object for servers 
+    iproute = IPRoute()
+    # Create the servers and add the handlers
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     srv6_explicit_path_pb2_grpc.add_SRv6ExplicitPathServicer_to_server(
-        SRv6ExplicitPathHandler(), grpc_server)
-
+        SRv6ExplicitPathHandler(iproute), grpc_server)
+    dataplaneapi_pb2_grpc.add_DataplaneStateServicer_to_server(
+        DataplaneStateHandler(iproute), grpc_server)
+    dataplaneapi_pb2_grpc.add_ConfigureDataplaneServicer_to_server(
+        ConfigureDataplaneHandler(iproute), grpc_server)
+    
     # If secure we need to create a secure endpoint
     if secure:
         # Read key and certificate
