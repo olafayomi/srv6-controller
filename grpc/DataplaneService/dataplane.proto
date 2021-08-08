@@ -65,6 +65,8 @@ message Interface {
   }
   // Interface state
   State IfState = 3;
+  repeated string Neighbours = 4;
+  repeated string Addresses = 5;
 }
 
 // Message to return interfaces

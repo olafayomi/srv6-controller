@@ -53,6 +53,10 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
                 proto_iface = dataplane_pb2.Interface()
                 proto_iface.IfName = ifname
                 proto_iface.IfIndex = ifindex
+                neighbours = self.nlGetNeighFromIface(ifindex)
+                addrs = self.nlGetIfaceAddr(ifindex)
+                proto_iface.Neighbours.extend(neighbours)
+                proto_iface.Addresses.extend(addrs)
                 if ifstate == 'UP':
                     proto_iface.IfState = 1
                 elif ifstate == 'DOWN':
@@ -80,6 +84,10 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
                 proto_iface = dataplane_pb2.Interface()
                 proto_iface.IfName = ifname
                 proto_iface.IfIndex = ifindex
+                neighbours = self.nlGetNeighFromIface(ifindex)
+                addrs = self.nlGetIfaceAddr(ifindex)
+                proto_iface.Neighbours.extend(neighbours)
+                proto_iface.Addresses.extend(addrs)
                 if ifstate == 'UP':
                     proto_iface.IfState = 1
                 elif ifstate == 'DOWN':
@@ -105,6 +113,10 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
                 proto_iface = dataplane_pb2.Interface()
                 proto_iface.IfName = ifname
                 proto_iface.IfIndex = ifindex
+                neighbours = self.nlGetNeighFromIface(ifindex)
+                addrs = self.nlGetIfaceAddr(ifindex)
+                proto_iface.Neighbours.extend(neighbours)
+                proto_iface.Addresses.extend(addrs)
                 if ifstate == 'UP':
                     proto_iface.IfState = 1
                 elif ifstate == 'DOWN':
@@ -273,7 +285,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
         return rTables
 
 
-    def nlGetIfaceFromNeigh(self,address): 
+    def nlGetIfaceFromNeigh(self, address): 
         ipaddr = ipaddress.ip_address(address)
         if ipaddr.version == 6:
             nei = self.iproute.get_neighbours(dst=address, family=AF_INET6)
@@ -289,6 +301,25 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
         d_ifstate, ifstate = link[0]['attrs'][2]
         tup = (ifindex, ifname, ifstate)
         return tup
+
+    def nlGetNeighFromIface(self, index):
+        neigh_list = []
+        neighbours = self.iproute.get_neighbours(ifindex=index)
+        for neigh in neighbours:
+            addr = neigh.get_attr('NDA_DST', None)
+            neigh_list.append(addr)
+        return neigh_list
+        
+    
+    def nlGetIfaceAddr(self, ind):
+        addresses = []
+        nladdrs = self.iproute.get_addr(index=ind)
+        for nladdr in nladdrs: 
+            addr = nladdr.get_attr('IFA_ADDRESS', None)
+            prefix = addr['prefixlen'] 
+            addr_str = addr+'/'+str(prefix)
+            addresses.append(addr_str)
+        return addresses
 
 
     def nlGetIfaces(self):
@@ -392,26 +423,3 @@ class ConfigureDataplaneHandler(dataplaneapi_pb2_grpc.ConfigureDataplaneServicer
                 response.ip6tablecreated = False 
                 response.failed.extend(failed)
             return response
-                
-
-
-
-
-
-
-
-
-
-                                    
-                
-
-
-                
-
-          
-
-
-
-
-
-
