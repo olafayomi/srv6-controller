@@ -30,7 +30,7 @@ message Path {
   // Encap mode
   string encapmode = 3;
   // Device name
-  string device = 4;
+  uint32 device = 4;
   // Routing table number
   uint32 table = 5;
 }

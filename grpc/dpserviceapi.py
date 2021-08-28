@@ -24,6 +24,7 @@
 
 from pyroute2 import IPRoute
 from pyroute2 import NFTables
+from pr2modules import netlink
 import ipaddress
 from socket import AF_INET 
 from socket import AF_INET6
@@ -34,17 +35,17 @@ import logging
 import status
 import iptc
 
-logger = logging.getLogger(__name__)
 
 class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
     """gRPC request handler"""
 
     def __init__(self, _iproute):
         self.iproute = _iproute
-
+        self.log = logging.getLogger("DataplaneStateHandler")
 
     def GetIfaces(self, request, context):
         with status.context(context):
+            self.log.debug("Received interface request")
             response = dataplane_pb2.ReplyIfaces()
             ifaces = self.nlGetIfaces()
             nl_ifaces = []
@@ -70,6 +71,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
 
     def GetExternalIfaces(self, request, context):
         with status.context(context):
+            self.log.debug("Received external interface request")
             response = dataplane_pb2.ReplyIfaces()
             int_ifaces = []
             all_ifaces = self.nlGetIfaces()
@@ -101,6 +103,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
 
     def GetInternalIfaces(self, request, context):
         with status.context(context):
+            self.log.debug("Received internal interface request")
             response = dataplane_pb2.ReplyIfaces()
             int_ifaces = []
             for neigh in request.Neighbours:
@@ -130,6 +133,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
 
     def GetRoutingTables(self, request, context):
         with status.context(context):
+            self.log.debug("Received get routing table request!!!")
             response = dataplane_pb2.RoutesInAllTables()
             alltables = []
             routeTables = self.nlGetRoutingTables()
@@ -166,6 +170,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
 
     def GetRouteTable(self, request, context):
         with status.context(context):
+            self.log.debug("Received a single route table dump request")
             response = dataplane_pb2.RoutesInTable()
             routeTables = self.nlGetRoutingTables()
             table = request.tableNo 
@@ -198,6 +203,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
 
     def Getip6tables(self, request, context):
         with status.context(context):
+            self.log.debug("Received get IP6table request")
             response = dataplane_pb2.RequestIP6TableRule()
             rules_lst = []
             rules = iptc.easy.dump_chain('mangle', 'PREROUTING', ipv6=True)
@@ -304,7 +310,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
 
     def nlGetNeighFromIface(self, index):
         neigh_list = []
-        neighbours = self.iproute.get_neighbours(ifindex=index)
+        neighbours = self.iproute.get_neighbours(ifindex=index, family=AF_INET6)
         for neigh in neighbours:
             addr = neigh.get_attr('NDA_DST', None)
             neigh_list.append(addr)
@@ -316,7 +322,7 @@ class DataplaneStateHandler(dataplaneapi_pb2_grpc.DataplaneStateServicer):
         nladdrs = self.iproute.get_addr(index=ind)
         for nladdr in nladdrs: 
             addr = nladdr.get_attr('IFA_ADDRESS', None)
-            prefix = addr['prefixlen'] 
+            prefix = nladdr['prefixlen'] 
             addr_str = addr+'/'+str(prefix)
             addresses.append(addr_str)
         return addresses
@@ -341,18 +347,27 @@ class ConfigureDataplaneHandler(dataplaneapi_pb2_grpc.ConfigureDataplaneServicer
         self.iproute = _iproute
         self.iptc = iptc
         self.last_route = 0
+        self.log = logging.getLogger("ConfigureDataplaneHandler")
+        self.tables = {}
+        self.iptables = {}
 
-    def FlowMark(self, context, request):
+    def FlowMark(self, request, context):
         with status.context(context):
+            self.log.debug("Received request to create flow marks!!!")
             response = dataplane_pb2.ReplyFlowMark()
             succeeded = []
             failed = []
             for rule in request.rule:
                 proto_rule = dataplane_pb2.IPRule()
-                out = self.iproute.rule('add',
-                                  family=AF_INET6,
-                                  table=rule.table,
-                                  fwmark=rule.fwmark)
+                try:
+                    out = self.iproute.rule('add',
+                                    family=AF_INET6,
+                                    table=rule.table,
+                                    fwmark=rule.fwmark)
+                except netlink.exceptions.NetlinkError as e:
+                    if e.code == 17:
+                        self.log.debug("Flow already added!!!")
+                        continue
                 proto_rule.table = rule.table
                 proto_rule.fwmark = rule.fwmark
                 msg, = out 
@@ -370,27 +385,35 @@ class ConfigureDataplaneHandler(dataplaneapi_pb2_grpc.ConfigureDataplaneServicer
             return response
 
 
-    def CreateRouteTable(self, context, request):
+    def CreateRouteTable(self, request, context):
         with status.context(context):
+            self.log.debug("Received request to create routetable!!!!")
             response = dataplane_pb2.ReplyPARFlows()
             rtables = []
             failed = []
+            self.log.debug("Request is type: %s"   %type(request))
+            self.log.debug("Request: %s" %request)
             for flow in request.flow:
                 rtab = dataplane_pb2.RTables()
                 rtab.tableName = flow
-                if self.last_route == 0:
-                    self.last_route = 10
+                if flow not in self.tables:
+                    if self.last_route == 0:
+                        self.last_route = 10
+                        self.log.debug("CreateRouteTable: About to create table %s for %s" %(self.last_route, flow))
                     rtab.tableNo = self.last_route
-                out = self.iproute.route("add", dst="::1",
-                        oif=1, table=self.last_route)
-                msg, = out
-                err = msg['header']['error']
-                if err:
-                    failed.append(flow)
-                else:
-                    rtables.append(rtab)
-                self.last_route += 1
+                    out = self.iproute.route("add", dst="::1",
+                            oif=1, table=self.last_route)
+                    msg, = out
+                    err = msg['header']['error']
+                    if err:
+                        failed.append(flow)
+                    else:
+                        rtables.append(rtab)
+                        self.tables[flow] = self.last_route
+                        self.last_route += 1
+
             response.created.extend(rtables)
+
             if len(failed) == 0:
                 response.CreatedAll = True
             else:
@@ -399,22 +422,30 @@ class ConfigureDataplaneHandler(dataplaneapi_pb2_grpc.ConfigureDataplaneServicer
             return response
 
 
-    def AddIp6tableRule(self, context, request):
+    def AddIp6tableRule(self, request, context):
         with status.context(context):
+            self.log.debug("Received request to add ip6table rules")
+            self.log.debug("IP6Tables rules request received: %s" %request)
             response = dataplane_pb2.ReplyIP6TableRule()
             succeeded = []
             failed = []
-            for rule in request:
+            for rule in request.rules:
+                self.log.debug("Processing rule %s" %rule)
+                #if rule.protocol not in self.iptables:
                 p_rule = dataplane_pb2.IP6TableRule()
                 cmdlist = ['/sbin/ip6tables', '-t', 'mangle', '-A', 'PREROUTING', '-i', 'NULL', '-p', 'NULL', '--dport', 'NULL', '-j', 'MARK', '--set-mark', 'NULL']
                 cmdlist[6] = rule.intName
                 cmdlist[8] = rule.protocol
-                cmdlist[10] = rule.DPort
-                cmdlist[14] = rule.FwmarkNo
+                cmdlist[10] = str(rule.DPort)
+                cmdlist[14] = str(rule.FwmarkNo)
+                self.log.debug("COMMAND to be applied: %s" %cmdlist)
                 result = subprocess.run(cmdlist) 
+                self.log.debug("Result of applying command: %s" %result)
                 if result.returncode == 0:
                     succeeded.append(rule)
+                    self.iptables[rule.protocol] = [rule.intName, rule.DPort, rule.FwmarkNo]
                 else:
+                    self.log.debug("Error code for adding table is %s" %result.returncode)
                     failed.append(rule)
             response.successful.extend(succeeded)
             if len(failed) == 0:

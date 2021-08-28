@@ -50,7 +50,13 @@ import dataplaneapi_pb2_grpc
 
 
 # Logger reference
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dataplane-manager")
+#strHandler = logging.StreamHandler()
+#formatter = logging.Formatter("%(asctime)s %(levelname)-8s %(message)s")
+#strHandler.setFormatter(formatter)
+#logger.addHandler(strHandler)
+
+
 
 # Default path to the .env file
 DEFAULT_ENV_FILE_PATH = resource_filename(__name__, './dataplane_manager.env')
@@ -287,11 +293,13 @@ if __name__ == "__main__":
         logger.warning('Configuration file not found. '
                        'Using default configuration.')
     if args.debug:
-        logger.setLevel(level=logging.DEBUG) 
+        logger.setLevel(level=logging.DEBUG)
         config.debug = args.debug
     else:
         logger.setLevel(level=logging.INFO)
     server_debug = logger.getEffectiveLevel() == logging.DEBUG
+    logging.basicConfig(level=logging.DEBUG,
+            format="%(asctime)s| %(levelname).8s | %(name)-10s | %(message)s")
     logging.info('SERVER_DEBUG: %s', server_debug)
     # Validate configuration
     if not config.validate_config():

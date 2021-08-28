@@ -28,39 +28,40 @@ from pyroute2 import IPRoute
 from pyroute2 import NFTables
 import logging
 
-logger = logging.getLogger(__name__)
 
 class SRv6ExplicitPathHandler(srv6_explicit_path_pb2_grpc.SRv6ExplicitPathServicer):
   """gRPC request handler"""
 
   def __init__(self, _iproute):
       self.ipr = _iproute
+      self.log = logging.getLogger("SRV6-Manager")
+      self.maintable  = 254
 
 
   def Execute(self, op, request, context):
-    logger.debug("config received:\n%s", request)
+    self.log.debug("config received:\n%s", request)
     # Let's push the routes
     for path in request.path:
       # Rebuild segments
       segments = []
       for srv6_segment in path.sr_path:
         segments.append(srv6_segment.segment)
-        logger.info("SERVER DEBUG: Segment is %s" %segments)
+        self.log.info("SERVER DEBUG: Segment is %s" %segments)
 
-      logger.info("SERVER DEGUG: SEGEMENT: %s  ->  DESTINATION: %s" %(segments, path.destination))
+      self.log.info("SERVER DEGUG: SEGEMENT: %s  ->  DESTINATION: %s" %(segments, path.destination))
       if path.table == 0:
-          rtable = maintable
+          rtable = self.maintable
       else:
           rtable = path.table
-          logger.info("SERVER DEBUG: SEGMENT is for PAR TABLE!!!!")
+          self.log.info("SERVER DEBUG: SEGMENT is for PAR TABLE!!!!")
       # Add priority
       if op == 'del':
-          self.ipr.route(op, dst=path.destination, oif=idxs[path.device],
+          self.ipr.route(op, dst=path.destination, oif=path.device,
             table=rtable,
             encap={'type':'seg6', 'mode': path.encapmode, 'segs': segments},
             priority=10)
       else:
-          self.ipr.route(op, dst=path.destination, oif=idxs[path.device],
+          self.ipr.route(op, dst=path.destination, oif=path.device,
             table=rtable,
             encap={'type':'seg6', 'mode':path.encapmode, 'segs':segments},
             priority=10)
